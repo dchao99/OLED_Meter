@@ -19,24 +19,24 @@
 #endif
 
 // Compiler directives, comment out to disable
-#define DEBUG_PROMINI             // Debug output to terminal
-#define I2C_BME280_ADDR 0x76      // BME280 Temperature/Humidity/Pressure Sensor
+#define USE_SERIAL Serial           // Valid options: Serial and Serial1
+//#define I2C_BME280_ADDR 0x76      // BME280 Temperature/Humidity/Pressure Sensor
 //#define I2C_INA219_ADDR 0x40      // INA219 High Side Current Sensor 
 
 // To read a max 4.2V from V(bat), a voltage divider 330KΩ-100KΩ-GND is used to drop max voltage 
 // down to 1.08V (=Vref)
-const float volt_div_const = 4.30*1.08/1.023;    // multiplier = Vin_max*Vref/1.023 (mV)
+const float volt_div_const = 4.30*1.08/1.023;           // multiplier = Vin_max*Vref/1.023 (mV)
+
+// SOC table for 75%, 50%, 25% and <5%  (mV)
+const int bat_soc_table[] = { 3970, 3860, 3750, 3600 }; // eBay_501235_180mAh @20mA
+const int bat_hys_theshold = 30;     // (mV) Hysteresis threshold. Only implemented on FULL/EMPTY 
 
 const int   vbat_pin = A6;        // ADC Pin connected to VBAT
-const int   led_flip_mode = 0;    // 1 = LED display is rotated 180
+const int   led_flip_mode = 1;    // 1 = LED display is rotated 180
 const float led_altitude = 30;    // My altitude (meters)
 
 const unsigned int display_refresh_rate = 1 * 1000; // Display refresh interval = 1 sec
 const unsigned int mode_cycling_rate    = 3 * 1000; // Meter mode cycling interval = 3 sec
-
-// SOC table for 75%, 50%, 25% and <5%  (mV)
-const int bat_soc_table[] = { 3900, 3760, 3700, 3400 };
-const int bat_hys_theshold = 30;     // (mV) Hysteresis threshold. Only implemented on FULL/EMPTY 
 
 enum Battery { EMPTY_BAR, ONE_BAR, TWO_BAR,   // Full = 100%,  Three-bar = 75%,  Two-bar = 50%
                THREE_BAR, FULL_BAR };         // One-bar = 25%,  Empty = <5%
@@ -46,7 +46,7 @@ enum MeterMode { DISP_TEMP, DISP_HUMID };     // Display cycle between temperatu
 MeterMode meterMode;
 unsigned long modeStartTime;
 
-#ifdef DEBUG_PROMINI
+#ifdef USE_SERIAL
 String readBuffer ="";                        // Console input, global variable so value persist
 #endif
 
@@ -98,7 +98,7 @@ int readBatteryVoltage()
 // Initialize the battery icon bitmap function
 void setupBatteryIcon(int mV) 
 {
-/*  if ( mV > bat_soc_table[0] )
+  if ( mV > bat_soc_table[0] )
     batCurrStatus = batPrevStatus = FULL_BAR;
   else if ( mV > bat_soc_table[1] )
     batCurrStatus = batPrevStatus = THREE_BAR;
@@ -106,7 +106,7 @@ void setupBatteryIcon(int mV)
     batCurrStatus = batPrevStatus = TWO_BAR;
   else if ( mV > bat_soc_table[3] )
     batCurrStatus = batPrevStatus = ONE_BAR;
-  else*/
+  else
     batCurrStatus = batPrevStatus = EMPTY_BAR;
 }
 
@@ -178,18 +178,18 @@ const unsigned char * getBatteryIconBitmap(int mV)
 
 void setup(void) 
 {
-  #ifdef DEBUG_PROMINI
-  Serial.begin(57600);    // 8MHz ATmega328 can't go as fast as 115200, drop down a notch.
+  #ifdef USE_SERIAL
+  USE_SERIAL.begin(57600);    // 8MHz ATmega328 can't go as fast as 115200, drop down a notch.
   delay(10);
-  Serial.println();
-  Serial.println();
+  USE_SERIAL.println();
+  USE_SERIAL.println();
   #endif
 
   // Beginning hardware checks
   #ifdef I2C_BME280_ADDR
   if (!bme.begin(I2C_BME280_ADDR)) {
-    #ifdef DEBUG_PROMINI
-    Serial.println(F("Error: Couldn't find a BME280 sensor."));
+    #ifdef USE_SERIAL
+    USE_SERIAL.println(F("Error: Couldn't find a BME280 sensor."));
     #endif
     blinkLED();
   }
@@ -272,8 +272,8 @@ void displayCurrent(float amp)
 void loop(void) 
 {
   int batteryVoltage = readBatteryVoltage();
-  #ifdef DEBUG_PROMINI
-  Serial.println("Battery: "+String(batteryVoltage)+"mV  ");
+  #ifdef USE_SERIAL
+  USE_SERIAL.println("Battery: "+String(batteryVoltage)+"mV  ");
   #endif
   #ifdef I2C_BME280_ADDR
   // Measure BME280 sensors
@@ -287,35 +287,35 @@ void loop(void)
       meterMode = DISP_TEMP;
     modeStartTime = millis();
   }
-  #ifdef DEBUG_PROMINI
-  Serial.println("BME280: "+String(bmeTemperature,1)+"C, " + String(bmeHumidity,1) + "%, " + String(seaLevelPressure,1) + "hPa"); 
+  #ifdef USE_SERIAL
+  USE_SERIAL.println("BME280: "+String(bmeTemperature,1)+"C, " + String(bmeHumidity,1) + "%, " + String(seaLevelPressure,1) + "hPa"); 
   #endif
   #endif //I2C_BME280_ADDR
   #ifdef I2C_INA219_ADDR
   float inaCurrent = ina219.getCurrent_mA();
-  #ifdef DEBUG_PROMINI
-  Serial.println("INA219: "+String(inaCurrent,0)+"mA"); 
+  #ifdef USE_SERIAL
+  USE_SERIAL.println("INA219: "+String(inaCurrent,0)+"mA"); 
   #endif
   #endif //I2C_INA219_ADDR
-  #ifdef DEBUG_PROMINI
+  #ifdef USE_SERIAL
   // Allow developer to test value by enter it through console
-  if (Serial.available()) {
+  if (USE_SERIAL.available()) {
     readBuffer="";
-    while (Serial.available()) {
+    while (USE_SERIAL.available()) {
       // Read every byte until <newline> encountered
-      // Note: make sure the terminal sends <newline> for the end of line
-      char c = Serial.read();
+      // Note: make sure the terminal sends <newline> for every end of line
+      char c = USE_SERIAL.read();
       if (c != '\n')
         readBuffer += c;
     }
   }
   if (readBuffer.length() >0) {
     int newval = readBuffer.toInt();
-    Serial.println("New Value: \""+readBuffer+"\" ");
+    USE_SERIAL.println("New Value: \""+readBuffer+"\" ");
     // Change the variable to the reading you are testing
     batteryVoltage = newval;  
   }
-  #endif //DEBUG_PROMINI
+  #endif //USE_SERIAL
   const unsigned char * bitmap = getBatteryIconBitmap(batteryVoltage);
   u8g2.firstPage();
   do {
